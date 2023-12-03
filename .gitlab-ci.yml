@@ -1,9 +1,28 @@
 name: Django                                  # workflow name
 
+workflows:
+  version: 2
+  django:
+    jobs:
+      - build
+      - test:
+          requires:
+            - build
+      - oast:
+          requires:
+            - test
+      - integration:
+          requires:
+            - oast
+      - prod:
+          type: approval
+          requires:
+            - integration
 on:
   push:
     branches:                                 # similar to "only" in GitLab
       - main
+
 
 jobs:
   build:
@@ -41,20 +60,17 @@ jobs:
           pip install -r requirements.txt
           python manage.py test taskManager
 
-  oast:
-    runs-on: ubuntu-20.04
-    needs: test
+   oast:
+    machine: true
     steps:
-      - uses: actions/checkout@v2
+      - checkout
 
-      - run: docker run --rm -v $(pwd):/src hysnsec/safety check -r requirements.txt --json | tee oast-results.json
-        continue-on-error: true             # allow the build to fail, similar to "allow_failure: true" in GitLab
+      - run: docker run -v $(pwd):/src --rm hysnsec/safety check -r /src/requirements.txt --json | tee oast-results.json
 
-      - uses: actions/upload-artifact@v2
-        with:
-          name: Safety
+      - store_artifacts:
           path: oast-results.json
-        if: always()                        # what is this for?
+          destination: safety-artifact
+     
 
   integration:
     runs-on: ubuntu-20.04
